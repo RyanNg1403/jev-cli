@@ -1,4 +1,7 @@
 node_modules
 dist
 *.log
-
+.env
+jev
+CODEX_REVIEW.md
+CODEX_SKILL_REVIEW.md

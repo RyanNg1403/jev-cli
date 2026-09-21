@@ -5,6 +5,18 @@ import { handleNoul } from "./commands/noul";
 import { handleScore } from "./commands/score";
 import { handleEval } from "./commands/eval";
 import { handleModelsList, handleModelsSetDefault } from "./commands/models";
+import { handleAddSkill } from "./commands/add-skill";
+
+// Handle POSIX signals gracefully
+process.on("SIGINT", () => {
+  process.exit(130);
+});
+
+process.stdout.on("error", (err: any) => {
+  if (err.code === "EPIPE") {
+    process.exit(0);
+  }
+});
 
 const cli = cac("jev");
 
@@ -30,7 +42,7 @@ cli
   .action(async (files, options) => {
     try {
       const code = await handleChoice(files, options);
-      process.exit(code);
+      process.exitCode = code;
     } catch (err: any) {
       process.stderr.write(`[jev error] ${err.message}\n`);
       process.exit(err.exitCode ?? 3);
@@ -59,7 +71,7 @@ cli
   .action(async (files, options) => {
     try {
       const code = await handleNoul(files, options);
-      process.exit(code);
+      process.exitCode = code;
     } catch (err: any) {
       process.stderr.write(`[jev error] ${err.message}\n`);
       process.exit(err.exitCode ?? 3);
@@ -71,7 +83,7 @@ cli
   .command("score [...files]", "Evaluate content along an ordered descriptive scale")
   .option("-l, --levels <levels>", "Comma-separated or JSON list of descriptive levels")
   .option("-i, --instruction <instruction>", "Grading rubric or criteria (text, JSON, or @file)")
-  .option("-q, --quiet", "Output only winning level ID")
+  .option("-q, --quiet", "Output winning level label")
   .option("--value", "Output expected numerical score value")
   .option("--json", "Output complete JSON payload")
   .option("--usage", "Output token metrics and estimated cost to stderr")
@@ -86,7 +98,7 @@ cli
   .action(async (files, options) => {
     try {
       const code = await handleScore(files, options);
-      process.exit(code);
+      process.exitCode = code;
     } catch (err: any) {
       process.stderr.write(`[jev error] ${err.message}\n`);
       process.exit(err.exitCode ?? 3);
@@ -110,7 +122,7 @@ cli
   .action(async (files, options) => {
     try {
       const code = await handleEval(files, options);
-      process.exit(code);
+      process.exitCode = code;
     } catch (err: any) {
       process.stderr.write(`[jev error] ${err.message}\n`);
       process.exit(err.exitCode ?? 3);
@@ -126,14 +138,31 @@ cli
     try {
       if (action === "set-default") {
         const code = handleModelsSetDefault(modelName);
-        process.exit(code);
+        process.exitCode = code;
       } else {
         const code = await handleModelsList(options);
-        process.exit(code);
+        process.exitCode = code;
       }
     } catch (err: any) {
       process.stderr.write(`[jev error] ${err.message}\n`);
       process.exit(err.exitCode ?? 3);
+    }
+  });
+
+// Register Add-Skill
+cli
+  .command("add-skill [agent]", "Install jev skill into agent registries (antigravity, codex, claude, cursor, all)")
+  .option("-d, --dir <dir>", "Custom directory to install the skill")
+  .option("-g, --global", "Install to global user directory (~/...) instead of project workspace")
+  .option("-f, --force", "Overwrite existing skill file if it already exists")
+  .option("-q, --quiet", "Quiet output, print only target path")
+  .action((agent, options) => {
+    try {
+      const code = handleAddSkill(agent, options);
+      process.exitCode = code;
+    } catch (err: any) {
+      process.stderr.write(`[jev error] ${err.message}\n`);
+      process.exit(2);
     }
   });
 

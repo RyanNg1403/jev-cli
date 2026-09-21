@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import { choice, noul, score } from "@typesafe-ai/sdk";
 import { JevService } from "../client";
 import type { EvalOptions } from "../types";
@@ -5,6 +6,9 @@ import {
   readStdinFull,
   readFileSyncSafe,
   parseJsonOrString,
+  isStdinPiped,
+  parsePositiveInt,
+  parseNonNegativeInt,
 } from "../utils/input";
 import { printUsage, writeDelimiter } from "../utils/format";
 import { readStreamItems, processConcurrentOrdered } from "../utils/stream";
@@ -14,7 +18,9 @@ export function normalizeSpecQuestions(specObj: Record<string, any>): Record<str
 
   for (const [key, q] of Object.entries(specObj)) {
     if (!q || typeof q !== "object") {
-      throw new Error(`Invalid question definition for '${key}' in spec.`);
+      const err: any = new Error(`Invalid question definition for '${key}' in spec.`);
+      err.exitCode = 2;
+      throw err;
     }
 
     const type = q.type?.toLowerCase();
@@ -42,7 +48,9 @@ export function normalizeSpecQuestions(specObj: Record<string, any>): Record<str
       const levels = q.criteria ?? q.levels ?? [];
       normalized[key] = score(instructions, levels);
     } else {
-      throw new Error(`Unknown question type '${q.type}' for key '${key}' in spec.`);
+      const err: any = new Error(`Unknown question type '${q.type}' for key '${key}' in spec.`);
+      err.exitCode = 2;
+      throw err;
     }
   }
 
@@ -55,37 +63,48 @@ export async function handleEval(files: string[], options: EvalOptions): Promise
     return 2;
   }
 
+  if (options.stream && files && files.length > 0) {
+    process.stderr.write("Error: Cannot combine --stream with positional file arguments.\n");
+    return 2;
+  }
+
   let specRaw: any;
-  if (options.spec.startsWith("@") || options.spec.endsWith(".json")) {
-    const p = options.spec.startsWith("@") ? options.spec.slice(1) : options.spec;
-    specRaw = JSON.parse(readFileSyncSafe(p));
-  } else {
-    specRaw = JSON.parse(options.spec);
+  try {
+    if (options.spec.startsWith("@") || options.spec.endsWith(".json")) {
+      const p = options.spec.startsWith("@") ? options.spec.slice(1) : options.spec;
+      specRaw = JSON.parse(readFileSyncSafe(p));
+    } else {
+      specRaw = JSON.parse(options.spec);
+    }
+  } catch (err: any) {
+    process.stderr.write(`Error: Invalid spec JSON: ${err.message}\n`);
+    return 2;
   }
 
   const questions = normalizeSpecQuestions(specRaw);
+  const concurrency = parsePositiveInt(options.concurrency, "concurrency", 10);
+  const retries = options.retries !== undefined ? parseNonNegativeInt(options.retries, "retries", 3) : undefined;
+  const timeout = options.timeout !== undefined ? Number(options.timeout) : undefined;
 
   const service = new JevService({
     apiKey: options.apiKey,
     model: options.model,
-    timeout: options.timeout ? Number(options.timeout) : undefined,
-    retries: options.retries ? Number(options.retries) : undefined,
+    timeout,
+    retries,
   });
 
-  const concurrency = options.concurrency ? Number(options.concurrency) : 10;
   const delim = writeDelimiter(Boolean(options.null));
 
   // Stream mode
   if (options.stream) {
-    const items = await readStreamItems(process.stdin, Boolean(options.null));
-    if (items.length === 0) return 0;
+    const stream = readStreamItems(process.stdin, Boolean(options.null));
 
     await processConcurrentOrdered(
-      items,
+      stream,
       concurrency,
-      async (item) => {
+      async (item, _idx, signal) => {
         const state = parseJsonOrString(item);
-        const res = await service.evaluate(state, questions);
+        const res = await service.evaluate(state, questions, signal);
         return res;
       },
       (res) => {
@@ -99,43 +118,52 @@ export async function handleEval(files: string[], options: EvalOptions): Promise
     return 0;
   }
 
-  // Multi-file batch mode
+  // Multi-file batch mode vs positional state string
+  let state: any;
   if (files && files.length > 0) {
-    await processConcurrentOrdered(
-      files,
-      concurrency,
-      async (filePath) => {
-        const content = readFileSyncSafe(filePath);
-        const state = options.jsonState ? parseJsonOrString(content) : content;
-        const res = await service.evaluate(state, questions);
-        return { filePath, res };
-      },
-      ({ filePath, res }) => {
-        if (options.usage) {
-          printUsage(res.usage);
+    if (files.length === 1 && !fs.existsSync(files[0])) {
+      state = parseJsonOrString(files[0]);
+    } else {
+      await processConcurrentOrdered(
+        files,
+        concurrency,
+        async (filePath, _idx, signal) => {
+          const content = readFileSyncSafe(filePath);
+          const s = options.jsonState ? parseJsonOrString(content) : content;
+          const res = await service.evaluate(s, questions, signal);
+          return { filePath, res };
+        },
+        ({ filePath, res }) => {
+          if (options.usage) {
+            printUsage(res.usage);
+          }
+          const output = {
+            file: filePath,
+            answers: res.answers,
+          };
+          process.stdout.write(JSON.stringify(output) + delim);
         }
-        const output = {
-          file: filePath,
-          answers: res.answers,
-        };
-        process.stdout.write(JSON.stringify(output) + delim);
-      }
-    );
+      );
 
-    return 0;
+      return 0;
+    }
   }
 
   // Single item mode
-  let state: any;
-  if (options.jsonState) {
-    if (options.jsonState.startsWith("@") || options.jsonState.endsWith(".json")) {
-      const p = options.jsonState.startsWith("@") ? options.jsonState.slice(1) : options.jsonState;
-      state = JSON.parse(readFileSyncSafe(p));
+  if (state === undefined) {
+    if (options.jsonState) {
+      if (options.jsonState.startsWith("@") || options.jsonState.endsWith(".json")) {
+        const p = options.jsonState.startsWith("@") ? options.jsonState.slice(1) : options.jsonState;
+        state = JSON.parse(readFileSyncSafe(p));
+      } else {
+        state = JSON.parse(options.jsonState);
+      }
+    } else if (isStdinPiped()) {
+      state = parseJsonOrString(await readStdinFull());
     } else {
-      state = JSON.parse(options.jsonState);
+      process.stderr.write("Error: No input provided via stdin, positional argument, or [FILES...].\n");
+      return 2;
     }
-  } else {
-    state = await readStdinFull();
   }
 
   const res = await service.evaluate(state, questions);
@@ -144,6 +172,10 @@ export async function handleEval(files: string[], options: EvalOptions): Promise
     printUsage(res.usage);
   }
 
-  process.stdout.write(JSON.stringify(res.answers, null, 2) + "\n");
+  if (options.null) {
+    process.stdout.write(JSON.stringify(res.answers) + "\0");
+  } else {
+    process.stdout.write(JSON.stringify(res.answers, null, 2) + "\n");
+  }
   return 0;
 }

@@ -1,4 +1,9 @@
-import { TypeSafeClient } from "@typesafe-ai/sdk";
+import {
+  TypeSafeClient,
+  type EntryType,
+  type Questions,
+  type SystemOneResult,
+} from "@typesafe-ai/sdk";
 import { resolveApiKey, resolveModel } from "./config";
 
 export interface ClientOptions {
@@ -20,23 +25,33 @@ export class JevService {
       apiKey,
       timeout: options.timeout ? options.timeout * 1000 : 10000,
       retry: {
-        maxAttempts: options.retries ?? 3,
-        initialDelayMs: 500,
-        maxDelayMs: 8000,
-        backoffFactor: 2,
+        maxRetries: options.retries !== undefined ? options.retries : 3,
+        backoffInitialMs: 500,
+        backoffMaxMs: 8000,
       },
     });
   }
 
-  async evaluate(state: any, questions: Record<string, any>) {
+  async evaluate<const Q extends Questions>(
+    state: EntryType,
+    questions: Q,
+    signal?: AbortSignal
+  ): Promise<SystemOneResult<Q>> {
     try {
-      const response = await this.client.systemOne({
-        state,
-        questions,
-        model: this.model,
-      });
-      return response;
+      return await this.client.systemOne(
+        {
+          state,
+          questions,
+          model: this.model,
+        },
+        { signal }
+      );
     } catch (err: any) {
+      if (signal?.aborted) {
+        const error: any = new Error("Operation aborted");
+        error.exitCode = 130;
+        throw error;
+      }
       if (err.name === "AuthenticationError" || err.status === 401) {
         const error: any = new Error(`Authentication failed: Invalid API key.`);
         error.exitCode = 3;
@@ -62,9 +77,9 @@ export class JevService {
     }
   }
 
-  async listModels() {
+  async listModels(signal?: AbortSignal) {
     try {
-      return await this.client.models.list();
+      return await this.client.models.list({ signal });
     } catch (err: any) {
       err.exitCode = 3;
       throw err;

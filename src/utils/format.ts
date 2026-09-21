@@ -43,7 +43,9 @@ export function formatChoiceOutput(
       confidence,
       distribution,
     };
-    return JSON.stringify(payload, null, 2) + "\n";
+    return options.null
+      ? JSON.stringify(payload) + delim
+      : JSON.stringify(payload, null, 2) + "\n";
   }
 
   // Default readable format
@@ -87,7 +89,12 @@ export function formatNoulOutput(
       answer: passed,
       probability,
     };
-    return { text: JSON.stringify(payload, null, 2) + "\n", passed };
+    return {
+      text: options.null
+        ? JSON.stringify(payload) + delim
+        : JSON.stringify(payload, null, 2) + "\n",
+      passed,
+    };
   }
 
   return {
@@ -111,18 +118,19 @@ export function formatScoreOutput(
   const probabilities = answer.probabilities ?? {};
   const confidence = answer.confidence ?? 0;
 
-  // Best level is highest probability or rounded index
-  let bestLevel = "";
+  let winningId = "";
   let highestP = -1;
   for (const [lvl, p] of Object.entries(probabilities)) {
     if ((p as number) > highestP) {
       highestP = p as number;
-      bestLevel = legend[lvl] || lvl;
+      winningId = lvl;
     }
   }
 
+  const winningLabel = legend[winningId] ?? winningId;
+
   if (options.quiet) {
-    return `${bestLevel}${delim}`;
+    return `${winningLabel}${delim}`;
   }
 
   if (options.value) {
@@ -132,13 +140,16 @@ export function formatScoreOutput(
   if (options.json) {
     const payload = {
       score: scoreVal,
-      winning_level: bestLevel,
+      winning_level: winningId,
+      winning_label: winningLabel,
       legend,
       probabilities,
       confidence,
     };
-    return JSON.stringify(payload, null, 2) + "\n";
+    return options.null
+      ? JSON.stringify(payload) + delim
+      : JSON.stringify(payload, null, 2) + "\n";
   }
 
-  return `${bestLevel} (score: ${scoreVal.toFixed(2)}, conf: ${(confidence * 100).toFixed(1)}%)${delim}`;
+  return `${winningLabel} (level ${winningId}, score: ${scoreVal.toFixed(2)}, conf: ${(confidence * 100).toFixed(1)}%)${delim}`;
 }

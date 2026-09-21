@@ -9,6 +9,10 @@ import {
 import { formatChoiceOutput, formatNoulOutput, formatScoreOutput } from "../src/utils/format";
 import { normalizeSpecQuestions } from "../src/commands/eval";
 import { processConcurrentOrdered } from "../src/utils/stream";
+import { resolveSkillTargets, handleAddSkill } from "../src/commands/add-skill";
+import fs from "node:fs";
+import path from "node:path";
+import os from "node:os";
 
 describe("Input Parsers", () => {
   it("resolves comma-separated choices", () => {
@@ -109,5 +113,54 @@ describe("Stream Concurrency & Ordering", () => {
       "done-item-3",
       "done-item-4",
     ]);
+  });
+});
+
+describe("Skill Registration & Registry Targets", () => {
+  it("resolves default local target to .agents/skills/jev-cli/SKILL.md", () => {
+    const targets = resolveSkillTargets(undefined, {});
+    expect(targets[0]).toContain(path.join(".agents", "skills", "jev-cli", "SKILL.md"));
+  });
+
+  it("resolves explicit agent targets correctly", () => {
+    const codexTargets = resolveSkillTargets("codex", {});
+    expect(codexTargets[0]).toContain(path.join(".agents", "skills", "jev-cli", "SKILL.md"));
+
+    const claudeTargets = resolveSkillTargets("claude", {});
+    expect(claudeTargets[0]).toContain(path.join(".claude", "skills", "jev-cli", "SKILL.md"));
+
+    const cursorTargets = resolveSkillTargets("cursor", {});
+    expect(cursorTargets[0]).toContain(path.join(".cursor", "skills", "jev-cli", "SKILL.md"));
+  });
+
+  it("resolves global targets to home directory", () => {
+    const home = os.homedir();
+    const globalClaude = resolveSkillTargets("claude", { global: true });
+    expect(globalClaude[0]).toEqual(path.join(home, ".claude", "skills", "jev-cli", "SKILL.md"));
+
+    const globalCodex = resolveSkillTargets("codex", { global: true });
+    expect(globalCodex[0]).toEqual(path.join(home, ".agents", "skills", "jev-cli", "SKILL.md"));
+  });
+
+  it("resolves custom directory flag correctly", () => {
+    const custom = resolveSkillTargets(undefined, { dir: "/tmp/custom-registry" });
+    expect(custom[0]).toEqual("/tmp/custom-registry/jev-cli/SKILL.md");
+
+    const customDirectMd = resolveSkillTargets(undefined, { dir: "/tmp/my-skill.md" });
+    expect(customDirectMd[0]).toEqual("/tmp/my-skill.md");
+  });
+
+  it("writes skill file and respects --force", () => {
+    const tmpDir = path.join(os.tmpdir(), `jev-skill-test-${Date.now()}`);
+    const exitCode = handleAddSkill(undefined, { dir: tmpDir, quiet: true });
+    expect(exitCode).toBe(0);
+
+    const expectedFile = path.join(tmpDir, "jev-cli", "SKILL.md");
+    expect(fs.existsSync(expectedFile)).toBe(true);
+    const content = fs.readFileSync(expectedFile, "utf-8");
+    expect(content).toContain("name: jev-cli");
+
+    // Clean up
+    fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 });

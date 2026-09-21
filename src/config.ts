@@ -25,11 +25,20 @@ export function loadStoredConfig(): JevConfig {
 export function saveStoredConfig(config: Partial<JevConfig>): void {
   try {
     if (!fs.existsSync(CONFIG_DIR)) {
-      fs.mkdirSync(CONFIG_DIR, { recursive: true });
+      fs.mkdirSync(CONFIG_DIR, { recursive: true, mode: 0o700 });
+    } else {
+      try {
+        fs.chmodSync(CONFIG_DIR, 0o700);
+      } catch {
+        // Best effort
+      }
     }
     const current = loadStoredConfig();
     const updated = { ...current, ...config };
-    fs.writeFileSync(CONFIG_FILE, JSON.stringify(updated, null, 2), "utf-8");
+    fs.writeFileSync(CONFIG_FILE, JSON.stringify(updated, null, 2), {
+      encoding: "utf-8",
+      mode: 0o600,
+    });
   } catch (err: any) {
     throw new Error(`Failed to save config to ${CONFIG_FILE}: ${err.message}`);
   }
@@ -57,12 +66,9 @@ export function findDotEnv(startDir: string = process.cwd()): string | null {
  */
 export function loadDotEnv(): Record<string, string> {
   const envVars: Record<string, string> = {};
-  
-  // Also check common locations if not found in parent tree
+
   const locations = [
     findDotEnv(process.cwd()),
-    path.join(process.cwd(), ".env"),
-    path.join(os.homedir(), "Desktop", "skill-up", "jev", ".env"),
     path.join(os.homedir(), ".jev.env"),
   ].filter((loc): loc is string => Boolean(loc && fs.existsSync(loc)));
 
@@ -76,7 +82,10 @@ export function loadDotEnv(): Record<string, string> {
         if (eqIdx > 0) {
           const key = trimmed.slice(0, eqIdx).trim();
           let val = trimmed.slice(eqIdx + 1).trim();
-          if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+          if (
+            (val.startsWith('"') && val.endsWith('"')) ||
+            (val.startsWith("'") && val.endsWith("'"))
+          ) {
             val = val.slice(1, -1);
           }
           if (!(key in envVars)) {
@@ -96,29 +105,34 @@ export function resolveApiKey(explicitKey?: string): string {
   if (explicitKey) return explicitKey;
 
   const dotEnv = loadDotEnv();
-  
-  const envKey = process.env.TYPESAFE_API_KEY || 
-                 process.env.JEV_API_KEY || 
-                 dotEnv.TYPESAFE_API_KEY || 
-                 dotEnv.JEV_API_KEY;
+
+  const envKey =
+    process.env.TYPESAFE_API_KEY ||
+    process.env.JEV_API_KEY ||
+    dotEnv.TYPESAFE_API_KEY ||
+    dotEnv.JEV_API_KEY;
 
   if (envKey) return envKey;
 
   const stored = loadStoredConfig();
   if (stored.apiKey) return stored.apiKey;
 
-  throw new Error(
+  const err: any = new Error(
     "No TypeSafe API key found. Set $TYPESAFE_API_KEY or $JEV_API_KEY in your environment, or pass --api-key <key>."
   );
+  err.exitCode = 3;
+  throw err;
 }
 
 export function resolveModel(explicitModel?: string): string {
   if (explicitModel) return explicitModel;
 
   if (process.env.JEV_MODEL) return process.env.JEV_MODEL;
+  if (process.env.TYPESAFE_DEFAULT_MODEL) return process.env.TYPESAFE_DEFAULT_MODEL;
 
   const dotEnv = loadDotEnv();
   if (dotEnv.JEV_MODEL) return dotEnv.JEV_MODEL;
+  if (dotEnv.TYPESAFE_DEFAULT_MODEL) return dotEnv.TYPESAFE_DEFAULT_MODEL;
 
   const stored = loadStoredConfig();
   if (stored.defaultModel) return stored.defaultModel;

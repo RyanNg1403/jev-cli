@@ -2,10 +2,10 @@ import { describe, it, expect } from "bun:test";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 
-const CLI_PATH = path.resolve(__dirname, "../jev");
+const CLI_PATH = path.resolve(__dirname, "../dist/cli.js");
 
 function runJev(args: string[], input?: string): { stdout: string; stderr: string; status: number } {
-  const res = spawnSync(CLI_PATH, args, {
+  const res = spawnSync(process.execPath, [CLI_PATH, ...args], {
     input,
     encoding: "utf-8",
     env: { ...process.env },
@@ -13,7 +13,7 @@ function runJev(args: string[], input?: string): { stdout: string; stderr: strin
   return {
     stdout: res.stdout || "",
     stderr: res.stderr || "",
-    status: res.status ?? 0,
+    status: res.status ?? (res.error ? 1 : 0),
   };
 }
 

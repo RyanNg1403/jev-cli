@@ -8,6 +8,10 @@ import {
   readStdinFull,
   readFileSyncSafe,
   parseJsonOrString,
+  isStdinPiped,
+  parsePositiveInt,
+  parseNonNegativeInt,
+  parseThreshold,
 } from "../utils/input";
 import { formatNoulOutput, printUsage } from "../utils/format";
 import { readStreamItems, processConcurrentOrdered } from "../utils/stream";
@@ -19,17 +23,27 @@ export async function handleNoul(files: string[], options: NoulOptions): Promise
     return 2;
   }
 
+  if (options.stream && files && files.length > 0) {
+    process.stderr.write("Error: Cannot combine --stream with positional file arguments.\n");
+    return 2;
+  }
+
   const criteria = resolveCriteria(options.criteria);
+  const concurrency = parsePositiveInt(options.concurrency, "concurrency", 10);
+  const threshold = parseThreshold(options.threshold, 0.5);
+  const retries = options.retries !== undefined ? parseNonNegativeInt(options.retries, "retries", 3) : undefined;
+  const timeout = options.timeout !== undefined ? Number(options.timeout) : undefined;
 
   const service = new JevService({
     apiKey: options.apiKey,
     model: options.model,
-    timeout: options.timeout ? Number(options.timeout) : undefined,
-    retries: options.retries ? Number(options.retries) : undefined,
+    timeout,
+    retries,
   });
 
-  const threshold = options.threshold !== undefined ? Number(options.threshold) : 0.5;
-  const concurrency = options.concurrency ? Number(options.concurrency) : 10;
+  const question = noul(instruction, criteria);
+  const questions = { noul_q: question };
+
   let matchCount = 0;
   let totalCount = 0;
   let allPassed = true;
@@ -38,17 +52,14 @@ export async function handleNoul(files: string[], options: NoulOptions): Promise
 
   // Stream mode
   if (options.stream) {
-    const items = await readStreamItems(process.stdin, Boolean(options.null));
-    if (items.length === 0) return 1;
+    const stream = readStreamItems(process.stdin, Boolean(options.null));
 
     await processConcurrentOrdered(
-      items,
+      stream,
       concurrency,
-      async (item) => {
+      async (item, _idx, signal) => {
         const s = parseJsonOrString(item);
-        const res = await service.evaluate(s, {
-          noul_q: noul(instruction, criteria),
-        });
+        const res = await service.evaluate(s, questions, signal);
         return { item, res };
       },
       ({ item, res }) => {
@@ -75,6 +86,7 @@ export async function handleNoul(files: string[], options: NoulOptions): Promise
       }
     );
 
+    if (totalCount === 0) return 1;
     if (options.filter) {
       return matchCount > 0 ? 0 : 1;
     }
@@ -90,12 +102,10 @@ export async function handleNoul(files: string[], options: NoulOptions): Promise
       await processConcurrentOrdered(
         files,
         concurrency,
-        async (filePath) => {
+        async (filePath, _idx, signal) => {
           const content = readFileSyncSafe(filePath);
           const s = options.jsonState ? parseJsonOrString(content) : content;
-          const res = await service.evaluate(s, {
-            noul_q: noul(instruction, criteria),
-          });
+          const res = await service.evaluate(s, questions, signal);
           return { filePath, res };
         },
         ({ filePath, res }) => {
@@ -129,7 +139,7 @@ export async function handleNoul(files: string[], options: NoulOptions): Promise
     }
   }
 
-  // Single item mode (stdin or jsonState or positional arg)
+  // Single item mode (jsonState or stdin or positional arg)
   if (state === undefined) {
     if (options.jsonState) {
       if (options.jsonState.startsWith("@") || options.jsonState.endsWith(".json")) {
@@ -140,15 +150,16 @@ export async function handleNoul(files: string[], options: NoulOptions): Promise
         rawInput = options.jsonState;
         state = JSON.parse(options.jsonState);
       }
-    } else {
+    } else if (isStdinPiped()) {
       rawInput = await readStdinFull();
       state = parseJsonOrString(rawInput);
+    } else {
+      process.stderr.write("Error: No input provided via stdin, positional argument, or [FILES...].\n");
+      return 2;
     }
   }
 
-  const res = await service.evaluate(state, {
-    noul_q: noul(instruction, criteria),
-  });
+  const res = await service.evaluate(state, questions);
 
   if (options.usage) {
     printUsage(res.usage);
