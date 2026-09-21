@@ -1,0 +1,35 @@
+{
+  "name": "jev-cli",
+  "version": "0.1.0",
+  "description": "Fast semantic reflex CLI and progressive discovery utility powered by TypeSafe Jev",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "jev": "dist/cli.js"
+  },
+  "type": "module",
+  "scripts": {
+    "build": "bun build src/cli.ts --outfile dist/cli.js --target node",
+    "compile": "bun build --compile src/cli.ts --outfile jev",
+    "test": "bun test"
+  },
+  "keywords": [
+    "jev",
+    "typesafe",
+    "cli",
+    "ai",
+    "agent",
+    "reflex",
+    "progressive-discovery"
+  ],
+  "author": "Phat Nguyen",
+  "license": "MIT",
+  "dependencies": {
+    "@typesafe-ai/sdk": "^0.6.0",
+    "cac": "^6.7.14"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.5.0"
+  }
+}
