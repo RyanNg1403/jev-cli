@@ -139,7 +139,8 @@ describe("Skill Registration & Registry Targets", () => {
     expect(globalClaude[0]).toEqual(path.join(home, ".claude", "skills", "jev-cli", "SKILL.md"));
 
     const globalCodex = resolveSkillTargets("codex", { global: true });
-    expect(globalCodex[0]).toEqual(path.join(home, ".agents", "skills", "jev-cli", "SKILL.md"));
+    expect(globalCodex).toContain(path.join(home, ".codex", "skills", "jev-cli", "SKILL.md"));
+    expect(globalCodex).toContain(path.join(home, ".agents", "skills", "jev-cli", "SKILL.md"));
   });
 
   it("resolves custom directory flag correctly", () => {

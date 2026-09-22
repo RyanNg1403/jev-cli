@@ -253,7 +253,10 @@ export function resolveSkillTargets(
           path.join(home, ".agents", "skills", "jev-cli", "SKILL.md"),
         ];
       case "codex":
-        return [path.join(home, ".agents", "skills", "jev-cli", "SKILL.md")];
+        return [
+          path.join(home, ".codex", "skills", "jev-cli", "SKILL.md"),
+          path.join(home, ".agents", "skills", "jev-cli", "SKILL.md"),
+        ];
       case "claude":
       case "claude-code":
         return [path.join(home, ".claude", "skills", "jev-cli", "SKILL.md")];
@@ -262,9 +265,10 @@ export function resolveSkillTargets(
       case "all":
         return [
           path.join(home, ".agents", "skills", "jev-cli", "SKILL.md"),
-          path.join(home, ".gemini", "antigravity-cli", "skills", "jev-cli", "SKILL.md"),
+          path.join(home, ".codex", "skills", "jev-cli", "SKILL.md"),
           path.join(home, ".claude", "skills", "jev-cli", "SKILL.md"),
           path.join(home, ".cursor", "skills", "jev-cli", "SKILL.md"),
+          path.join(home, ".gemini", "antigravity-cli", "skills", "jev-cli", "SKILL.md"),
         ];
       case "default":
       default:
@@ -275,19 +279,30 @@ export function resolveSkillTargets(
   switch (normalized) {
     case "antigravity":
     case "gemini":
-    case "codex":
       return [path.join(cwd, ".agents", "skills", "jev-cli", "SKILL.md")];
+    case "codex": {
+      const targets = [path.join(cwd, ".agents", "skills", "jev-cli", "SKILL.md")];
+      if (fs.existsSync(path.join(cwd, ".codex"))) {
+        targets.push(path.join(cwd, ".codex", "skills", "jev-cli", "SKILL.md"));
+      }
+      return targets;
+    }
     case "claude":
     case "claude-code":
       return [path.join(cwd, ".claude", "skills", "jev-cli", "SKILL.md")];
     case "cursor":
       return [path.join(cwd, ".cursor", "skills", "jev-cli", "SKILL.md")];
-    case "all":
-      return [
+    case "all": {
+      const targets = [
         path.join(cwd, ".agents", "skills", "jev-cli", "SKILL.md"),
         path.join(cwd, ".claude", "skills", "jev-cli", "SKILL.md"),
         path.join(cwd, ".cursor", "skills", "jev-cli", "SKILL.md"),
       ];
+      if (fs.existsSync(path.join(cwd, ".codex"))) {
+        targets.push(path.join(cwd, ".codex", "skills", "jev-cli", "SKILL.md"));
+      }
+      return targets;
+    }
     case "default":
     default: {
       const targets: string[] = [path.join(cwd, ".agents", "skills", "jev-cli", "SKILL.md")];
@@ -296,6 +311,9 @@ export function resolveSkillTargets(
       }
       if (fs.existsSync(path.join(cwd, ".cursor"))) {
         targets.push(path.join(cwd, ".cursor", "skills", "jev-cli", "SKILL.md"));
+      }
+      if (fs.existsSync(path.join(cwd, ".codex"))) {
+        targets.push(path.join(cwd, ".codex", "skills", "jev-cli", "SKILL.md"));
       }
       return targets;
     }
