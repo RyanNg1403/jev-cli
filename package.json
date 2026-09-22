@@ -1,7 +1,10 @@
 {
-  "name": "jev-cli",
-  "version": "0.1.0",
+  "name": "@phatng/jev-cli",
+  "version": "0.0.1",
   "description": "Fast semantic reflex CLI and progressive discovery utility powered by TypeSafe Jev",
+  "publishConfig": {
+    "access": "public"
+  },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
@@ -9,14 +12,24 @@
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RyanNg1403/jev-cli.git"
+  },
+  "homepage": "https://github.com/RyanNg1403/jev-cli#readme",
+  "bugs": {
+    "url": "https://github.com/RyanNg1403/jev-cli/issues"
+  },
   "scripts": {
-    "build": "bun build src/cli.ts --outfile dist/cli.js --target node && bun build src/index.ts --outfile dist/index.js --target node",
+    "build": "bun build src/cli.ts --outfile dist/cli.js --target node && bun build src/index.ts --outfile dist/index.js --target node && tsc --emitDeclarationOnly",
     "compile": "bun build --compile src/cli.ts --outfile jev",
     "test": "bun test",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "bun run build && bun test"
   },
   "keywords": [
     "jev",

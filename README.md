@@ -16,7 +16,7 @@ Powered by [TypeSafe Jev](https://typesafe.ai).
 ## Install
 
 ```bash
-npm install -g @typesafe-ai/jev
+npm install -g @phatng/jev-cli
 
 # Or build a native binary with Bun for <10ms startup:
 bun run compile && cp ./jev /usr/local/bin/jev
