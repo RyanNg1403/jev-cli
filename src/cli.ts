@@ -6,6 +6,7 @@ import { handleScore } from "./commands/score";
 import { handleEval } from "./commands/eval";
 import { handleModelsList, handleModelsSetDefault } from "./commands/models";
 import { handleAddSkill } from "./commands/add-skill";
+import { handleAuthSetKey, handleAuthStatus, handleAuthLogout } from "./commands/auth";
 
 // Handle POSIX signals gracefully
 process.on("SIGINT", () => {
@@ -163,6 +164,27 @@ cli
     } catch (err: any) {
       process.stderr.write(`[jev error] ${err.message}\n`);
       process.exit(2);
+    }
+  });
+
+// Register Auth
+cli
+  .command("auth [action] [key]", "Manage authentication (set-key, status, logout)")
+  .action((action, key) => {
+    try {
+      if (action === "set-key" || action === "login") {
+        const code = handleAuthSetKey(key);
+        process.exitCode = code;
+      } else if (action === "logout") {
+        const code = handleAuthLogout();
+        process.exitCode = code;
+      } else {
+        const code = handleAuthStatus();
+        process.exitCode = code;
+      }
+    } catch (err: any) {
+      process.stderr.write(`[jev error] ${err.message}\n`);
+      process.exit(err.exitCode ?? 2);
     }
   });
 

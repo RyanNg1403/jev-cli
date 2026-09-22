@@ -1,76 +1,81 @@
-# Jev CLI (`jev`)
+# jev
 
-Fast Unix semantic reflex utility powered by [TypeSafe's System One model (Jev)](https://typesafe.ai). 
+`jev` asks questions about text and answers in a way shell scripts can use.
 
-Functions as a semantic `grep` and `test` primitive for shell pipelines and autonomous AI agents—enabling **progressive discovery** and **fast semantic triage** on disk and pipes without polluting the LLM context window.
-
-```text
-Local Files / Pipes ========> Jev Reflex (~700ms) ========> Typed Answer (5 tokens)
-(Megabytes of raw data)        [Bypasses LLM Context]          (Zero Context Pollution)
-```
-
----
-
-## Quick Install
+It reads from files or pipes, understands meaning (not just keywords), and returns a short answer plus an exit code. Use it like `grep` or `test`, but for meaning.
 
 ```bash
-# Via npm
+cat error.log | jev noul -i "Is this a database error?"
+# → true
+
+git diff | jev noul -i "Modifies database schema?" && echo "migration needed"
+```
+
+Powered by [TypeSafe Jev](https://typesafe.ai).
+
+## Install
+
+```bash
 npm install -g @typesafe-ai/jev
 
-# Or build native binary with Bun (<10ms startup)
+# Or build a native binary with Bun for <10ms startup:
 bun run compile && cp ./jev /usr/local/bin/jev
 ```
 
-Set your API key:
+Set your API key (pick one):
+
 ```bash
-export TYPESAFE_API_KEY="your-key" # or add to ~/.jev.env
+jev auth set-key "your-key"   # saved securely to ~/.jev/config.json
+# or export TYPESAFE_API_KEY="your-key"
 ```
 
----
+## Commands
 
-## Core Commands
+There are 4 main commands. All accept files as arguments or text via stdin.
 
-| Command | Purpose | Example |
+| Command | What it does | Example |
 | :--- | :--- | :--- |
-| **`jev choice`** | Route to best candidate | `cat error.log \| jev choice -c "db,auth,network" -q` |
-| **`jev noul`** | Boolean test / semantic grep | `git diff \| jev noul -i "Modifies database schema?" --threshold 0.8` |
-| **`jev score`** | Grade along descriptive rubric | `cat crash.log \| jev score -l "minor,moderate,critical" -q` |
-| **`jev eval`** | Multi-question triage in 1 pass | `cat ticket.json \| jev eval --spec ./spec.json --json` |
-| **`jev models`** | List available models | `jev models list` |
-| **`jev add-skill`** | Register skill in agent registries | `jev add-skill [codex\|claude\|cursor\|all]` |
+| `jev noul` | Yes/no question. Returns `true` or `false`. | `cat msg.txt \| jev noul -i "Customer wants to cancel?"` |
+| `jev choice` | Pick one option from a list. | `cat error.log \| jev choice -c "db,auth,network" -q` |
+| `jev score` | Rate text on a scale you define. | `cat crash.log \| jev score -l "minor,moderate,critical" -q` |
+| `jev eval` | Answer several questions at once from a spec file. | `cat ticket.json \| jev eval --spec ./spec.json` |
 
----
+Helpers:
 
-## Common Pipelines
+- `jev auth` — manage API key (`jev auth set-key <key>`, `jev auth status`, `jev auth logout`)
+- `jev models` — list models (`jev models list`) or set default (`jev models set-default <name>`)
+- `jev add-skill` — install instructions so AI agents (Claude, Codex, Cursor, Antigravity) can use `jev`
+
+Run any command with `--help` for all flags, or `--json` for full machine-readable output.
+
+## Examples
 
 ```bash
-# 1. Semantic grep over streaming logs
-cat /var/log/auth.log | jev noul -i "Credential stuffing attempt?" --filter --stream
+# Filter logs by meaning (like grep, but semantic)
+cat auth.log | jev noul -i "Credential stuffing attempt?" --filter --stream
 
-# 2. Safe file inspection with null delimiters (-z) for xargs -0
-find ./docs -name "*.md" -print0 | xargs -0 jev noul -i "Contains API keys?" --filter -z | xargs -0 chmod 600
-
-# 3. Shell conditional gating (exit 0 on True, 1 on False)
-if jev noul -i "Customer threatens churn?" customer_message.txt; then
-  ./alert-support.sh customer_message.txt
+# Use in an if statement (exit 0 = true, 1 = false)
+if jev noul -i "Customer threatens churn?" message.txt; then
+  ./alert-support.sh message.txt
 fi
 
-# 4. Instant agent integration (Antigravity, Codex CLI, Claude Code, Cursor)
+# Handle filenames safely with null bytes
+find ./docs -name "*.md" -print0 | xargs -0 jev noul -i "Contains API keys?" --filter -z
+
+# Let your AI agent use jev
 jev add-skill
 ```
 
----
-
-## Exit Codes
+## Exit codes
 
 | Code | Meaning |
 | :--- | :--- |
-| `0` | **Success / Condition Met** ($P \ge \text{threshold}$) |
-| `1` | **Condition Unmet** ($P < \text{threshold}$ or zero filter matches) |
-| `2` | **CLI Validation Error** (missing required flag, invalid JSON) |
-| `3` | **API / Network Failure** |
+| `0` | Yes / condition met / success |
+| `1` | No / condition not met / no lines matched |
+| `2` | Your command was invalid (missing flag, bad JSON) |
+| `3` | API or network error |
 
----
+`noul` exits `0` when the probability meets `--threshold` (default `0.5`).
 
 ## License
 

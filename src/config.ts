@@ -3,44 +3,63 @@ import path from "node:path";
 import os from "node:os";
 import type { JevConfig } from "./types";
 
-const CONFIG_DIR = path.join(os.homedir(), ".config", "jev");
-const CONFIG_FILE = path.join(CONFIG_DIR, "config.json");
+const JEV_HOME_DIR = path.join(os.homedir(), ".jev");
+const JEV_CONFIG_FILE = path.join(JEV_HOME_DIR, "config.json");
+const XDG_CONFIG_DIR = path.join(os.homedir(), ".config", "jev");
+const XDG_CONFIG_FILE = path.join(XDG_CONFIG_DIR, "config.json");
+
+export function getHomeDir(): string {
+  return JEV_HOME_DIR;
+}
 
 export function getConfigFile(): string {
-  return CONFIG_FILE;
+  if (fs.existsSync(JEV_CONFIG_FILE)) return JEV_CONFIG_FILE;
+  if (fs.existsSync(XDG_CONFIG_FILE)) return XDG_CONFIG_FILE;
+  return JEV_CONFIG_FILE;
 }
 
 export function loadStoredConfig(): JevConfig {
-  try {
-    if (fs.existsSync(CONFIG_FILE)) {
-      const data = fs.readFileSync(CONFIG_FILE, "utf-8");
-      return JSON.parse(data) as JevConfig;
+  const candidates = [
+    path.join(process.cwd(), ".jev", "config.json"),
+    JEV_CONFIG_FILE,
+    XDG_CONFIG_FILE,
+  ];
+
+  for (const file of candidates) {
+    try {
+      if (fs.existsSync(file)) {
+        const data = fs.readFileSync(file, "utf-8");
+        return JSON.parse(data) as JevConfig;
+      }
+    } catch {
+      // Ignore corrupt or unreadable config
     }
-  } catch {
-    // Ignore corrupt or unreadable config
   }
   return {};
 }
 
 export function saveStoredConfig(config: Partial<JevConfig>): void {
+  const targetFile = getConfigFile();
+  const targetDir = path.dirname(targetFile);
+
   try {
-    if (!fs.existsSync(CONFIG_DIR)) {
-      fs.mkdirSync(CONFIG_DIR, { recursive: true, mode: 0o700 });
+    if (!fs.existsSync(targetDir)) {
+      fs.mkdirSync(targetDir, { recursive: true, mode: 0o700 });
     } else {
       try {
-        fs.chmodSync(CONFIG_DIR, 0o700);
+        fs.chmodSync(targetDir, 0o700);
       } catch {
         // Best effort
       }
     }
     const current = loadStoredConfig();
     const updated = { ...current, ...config };
-    fs.writeFileSync(CONFIG_FILE, JSON.stringify(updated, null, 2), {
+    fs.writeFileSync(targetFile, JSON.stringify(updated, null, 2), {
       encoding: "utf-8",
       mode: 0o600,
     });
   } catch (err: any) {
-    throw new Error(`Failed to save config to ${CONFIG_FILE}: ${err.message}`);
+    throw new Error(`Failed to save config to ${targetFile}: ${err.message}`);
   }
 }
 
@@ -69,6 +88,8 @@ export function loadDotEnv(): Record<string, string> {
 
   const locations = [
     findDotEnv(process.cwd()),
+    path.join(process.cwd(), ".jev", ".env"),
+    path.join(os.homedir(), ".jev", ".env"),
     path.join(os.homedir(), ".jev.env"),
   ].filter((loc): loc is string => Boolean(loc && fs.existsSync(loc)));
 
@@ -118,7 +139,7 @@ export function resolveApiKey(explicitKey?: string): string {
   if (stored.apiKey) return stored.apiKey;
 
   const err: any = new Error(
-    "No TypeSafe API key found. Set $TYPESAFE_API_KEY or $JEV_API_KEY in your environment, or pass --api-key <key>."
+    "No TypeSafe API key found. Run 'jev auth set-key <key>' or set $TYPESAFE_API_KEY / $JEV_API_KEY."
   );
   err.exitCode = 3;
   throw err;

@@ -62,6 +62,7 @@ Instead of stuffing thousands of lines of raw text, codebases, or incident logs 
 | \`jev score\` | Grade along ordered descriptive rubrics | Stdin / files / arg | Winning label (\`-q\`), numeric score (\`--value\`), or JSON |
 | \`jev eval\` | Evaluate multiple orthogonal questions in 1 pass | Stdin / files / arg | Structured JSON dictionary of answers |
 | \`jev models\` | List available models or set CLI default | API | Table or JSON |
+| \`jev auth\` | Manage stored credentials (set-key, status, logout) | Config | Status string or JSON |
 | \`jev add-skill\` | Install skill into agent registries | Local / global | Skill path in agent directories |
 
 ---

@@ -10,6 +10,8 @@ import { formatChoiceOutput, formatNoulOutput, formatScoreOutput } from "../src/
 import { normalizeSpecQuestions } from "../src/commands/eval";
 import { processConcurrentOrdered } from "../src/utils/stream";
 import { resolveSkillTargets, handleAddSkill } from "../src/commands/add-skill";
+import { getHomeDir, getConfigFile, resolveApiKey } from "../src/config";
+import { handleAuthSetKey, handleAuthStatus, handleAuthLogout } from "../src/commands/auth";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
@@ -163,5 +165,35 @@ describe("Skill Registration & Registry Targets", () => {
 
     // Clean up
     fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+});
+
+describe("Config & Auth Management", () => {
+  it("getHomeDir points to ~/.jev", () => {
+    expect(getHomeDir()).toBe(path.join(os.homedir(), ".jev"));
+  });
+
+  it("handleAuthSetKey rejects empty or missing key", () => {
+    expect(handleAuthSetKey()).toBe(2);
+    expect(handleAuthSetKey("   ")).toBe(2);
+  });
+
+  it("handleAuthStatus returns 0 when key is present in env", () => {
+    const origKey = process.env.JEV_API_KEY;
+    try {
+      process.env.JEV_API_KEY = "apikey_test_dummy_1234567890123456";
+      expect(handleAuthStatus()).toBe(0);
+    } finally {
+      if (origKey !== undefined) {
+        process.env.JEV_API_KEY = origKey;
+      } else {
+        delete process.env.JEV_API_KEY;
+      }
+    }
+  });
+
+  it("resolveApiKey prefers explicit flag over env", () => {
+    const key = resolveApiKey("explicit-flag-key");
+    expect(key).toBe("explicit-flag-key");
   });
 });
