@@ -45,6 +45,7 @@ Helpers:
 - `jev auth` — manage API key (`jev auth set-key <key>`, `jev auth status`, `jev auth logout`)
 - `jev models` — list models (`jev models list`) or set default (`jev models set-default <name>`)
 - `jev add-skill` — install instructions so AI agents (Claude, Codex, Cursor, Antigravity) can use `jev`
+- `jev remove-skill` — uninstall skill from agent registries (`jev remove-skill [agent]`, alias `rm-skill`)
 
 Run any command with `--help` for all flags, or `--json` for full machine-readable output.
 

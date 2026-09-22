@@ -5,7 +5,7 @@ import { handleNoul } from "./commands/noul";
 import { handleScore } from "./commands/score";
 import { handleEval } from "./commands/eval";
 import { handleModelsList, handleModelsSetDefault } from "./commands/models";
-import { handleAddSkill } from "./commands/add-skill";
+import { handleAddSkill, handleRemoveSkill } from "./commands/add-skill";
 import { handleAuthSetKey, handleAuthStatus, handleAuthLogout } from "./commands/auth";
 
 // Handle POSIX signals gracefully
@@ -160,6 +160,23 @@ cli
   .action((agent, options) => {
     try {
       const code = handleAddSkill(agent, options);
+      process.exitCode = code;
+    } catch (err: any) {
+      process.stderr.write(`[jev error] ${err.message}\n`);
+      process.exit(2);
+    }
+  });
+
+// Register Remove-Skill
+cli
+  .command("remove-skill [agent]", "Uninstall jev skill from agent registries (antigravity, codex, claude, cursor, all)")
+  .alias("rm-skill")
+  .option("-d, --dir <dir>", "Custom directory to remove the skill from")
+  .option("-g, --global", "Remove from global user directory (~/...) instead of project workspace")
+  .option("-q, --quiet", "Quiet output, print only target path")
+  .action((agent, options) => {
+    try {
+      const code = handleRemoveSkill(agent, options);
       process.exitCode = code;
     } catch (err: any) {
       process.stderr.write(`[jev error] ${err.message}\n`);

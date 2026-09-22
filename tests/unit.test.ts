@@ -9,7 +9,7 @@ import {
 import { formatChoiceOutput, formatNoulOutput, formatScoreOutput } from "../src/utils/format";
 import { normalizeSpecQuestions } from "../src/commands/eval";
 import { processConcurrentOrdered } from "../src/utils/stream";
-import { resolveSkillTargets, handleAddSkill } from "../src/commands/add-skill";
+import { resolveSkillTargets, handleAddSkill, handleRemoveSkill } from "../src/commands/add-skill";
 import { getHomeDir, getConfigFile, resolveApiKey } from "../src/config";
 import { handleAuthSetKey, handleAuthStatus, handleAuthLogout } from "../src/commands/auth";
 import fs from "node:fs";
@@ -164,6 +164,21 @@ describe("Skill Registration & Registry Targets", () => {
     expect(content).toContain("name: jev-cli");
 
     // Clean up
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("uninstalls skill file cleanly with handleRemoveSkill", () => {
+    const tmpDir = path.join(os.tmpdir(), `jev-rm-skill-test-${Date.now()}`);
+    handleAddSkill(undefined, { dir: tmpDir, quiet: true });
+
+    const expectedFile = path.join(tmpDir, "jev-cli", "SKILL.md");
+    expect(fs.existsSync(expectedFile)).toBe(true);
+
+    const rmCode = handleRemoveSkill(undefined, { dir: tmpDir, quiet: true });
+    expect(rmCode).toBe(0);
+    expect(fs.existsSync(expectedFile)).toBe(false);
+
+    // Clean up parent
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 });

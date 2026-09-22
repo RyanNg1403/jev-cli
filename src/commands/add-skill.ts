@@ -366,3 +366,47 @@ export function handleAddSkill(
     return 2;
   }
 }
+
+export function handleRemoveSkill(
+  agent: string | undefined,
+  options: AddSkillOptions
+): number {
+  try {
+    const targets = resolveSkillTargets(agent, options);
+    let removedCount = 0;
+
+    for (const targetPath of targets) {
+      if (fs.existsSync(targetPath)) {
+        fs.unlinkSync(targetPath);
+        removedCount++;
+
+        // Clean up parent directory if empty and named jev-cli
+        const dir = path.dirname(targetPath);
+        try {
+          if (path.basename(dir) === "jev-cli" && fs.readdirSync(dir).length === 0) {
+            fs.rmdirSync(dir);
+          }
+        } catch {
+          // Ignore directory cleanup error
+        }
+
+        if (options.quiet) {
+          process.stdout.write(`${targetPath}\n`);
+        } else {
+          process.stdout.write(`Removed jev-cli skill from: ${targetPath}\n`);
+        }
+      } else if (!options.quiet) {
+        process.stdout.write(`No skill found at: ${targetPath}\n`);
+      }
+    }
+
+    if (!options.quiet && removedCount > 0) {
+      process.stdout.write(`\nSkill uninstalled successfully.\n`);
+    }
+
+    return 0;
+  } catch (err: any) {
+    process.stderr.write(`Error removing skill: ${err.message}\n`);
+    return 2;
+  }
+}
